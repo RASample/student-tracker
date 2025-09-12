@@ -16,7 +16,7 @@
   <div class="content">
     <h1>📊 Student Data Tracker</h1>
 
-    <!-- Login Form -->
+    <!-- Login Section -->
     <div id="loginSection">
       <label>Student Name:</label>
       <input type="text" id="loginName">
@@ -25,7 +25,7 @@
       <button onclick="login()">🔑 Log In</button>
     </div>
 
-    <!-- Tracker Form -->
+    <!-- Tracker Section -->
     <div id="trackerSection" class="hidden">
       <h2>Welcome, <span id="studentDisplay"></span></h2>
 
@@ -70,30 +70,20 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // Replace with your Apps Script Web App URL:
-    const BASE_URL = "https://script.google.com/macros/s/AKfycbyhxM8LoFklIvEZITpeUnbeWr_b9njCub6vXk4lSFESKyd87i-IVFEy8vJZ7m-uA9W5Cg/exec"; 
+    // ⬅️ Replace this with your Apps Script Web App /exec URL
+    const BASE_URL = "https://script.google.com/macros/s/AKfycbyD9sIzFDQ1Ffm1SrUyjYQoFPyjzHUYj4daNk_CN1K5U04HUuJuhlihsn_fWHLPf8B6/exec";
 
     let currentName = "";
     let currentPass = "";
     let assessmentData = [];
     let testNames = [];
+    let chart;
 
-    // Add test score to chart
-    function addTest() {
-      const testName = document.getElementById("testName").value;
-      const testScore = parseInt(document.getElementById("testScore").value);
-
-      if (testName && !isNaN(testScore)) {
-        testNames.push(testName);
-        assessmentData.push(testScore);
-        updateChart();
-      }
-    }
-
-    // Draw chart
+    // --- Chart update ---
     function updateChart() {
       const ctx = document.getElementById("scoreChart").getContext("2d");
-      new Chart(ctx, {
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
         type: "line",
         data: {
           labels: testNames,
@@ -107,7 +97,18 @@
       });
     }
 
-    // Login and load last saved data
+    // --- Add test score ---
+    function addTest() {
+      const testName = document.getElementById("testName").value;
+      const testScore = parseInt(document.getElementById("testScore").value);
+      if (testName && !isNaN(testScore)) {
+        testNames.push(testName);
+        assessmentData.push(testScore);
+        updateChart();
+      }
+    }
+
+    // --- Login ---
     async function login() {
       currentName = document.getElementById("loginName").value.trim();
       currentPass = document.getElementById("loginPasscode").value.trim();
@@ -118,35 +119,37 @@
       }
 
       try {
-        const res = await fetch(`${BASE_URL}?name=${encodeURIComponent(currentName)}&passcode=${encodeURIComponent(currentPass)}`);
+        const res = await fetch(`${BASE_URL}?name=${encodeURIComponent(currentName)}&passcode=${encodeURIComponent(currentPass)}`, {
+          method: "GET"
+        });
         const data = await res.json();
 
         if (data.error) {
-          alert("No data found or invalid login. Starting new profile.");
+          alert("No data found or invalid login. A new profile will be created.");
         } else {
-          // Prefill fields with last saved data
+          // Prefill fields
           document.getElementById("studentClass").value = data.Class || "";
           document.getElementById("teacherName").value = data.Teacher || "";
           document.getElementById("careerGoal").value = data["Career Goal"] || "";
           document.getElementById("academicGoal").value = data["Academic Goal"] || "";
 
-          // Reset test data
           testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
           assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
           updateChart();
         }
 
+        // Show tracker
         document.getElementById("studentDisplay").textContent = currentName;
         document.getElementById("loginSection").classList.add("hidden");
         document.getElementById("trackerSection").classList.remove("hidden");
 
       } catch (err) {
         console.error("Login failed", err);
-        alert("❌ Could not load data. Try again.");
+        alert("❌ Could not load data. Check your backend URL.");
       }
     }
 
-    // Save current data to Google Sheets
+    // --- Save ---
     async function saveToGoogleSheets() {
       const data = {
         studentName: currentName,
@@ -167,6 +170,7 @@
       try {
         const response = await fetch(BASE_URL, {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(data)
         });
 
@@ -178,7 +182,7 @@
         }
       } catch (error) {
         console.error("Save failed:", error);
-        alert("❌ Could not save data.");
+        alert("❌ Could not save data. Check your backend URL.");
       }
     }
   </script>
