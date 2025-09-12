@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Student Data Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .content { max-width: 800px; margin: auto; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, textarea { width: 100%; padding: 6px; margin-top: 4px; }
+    button { margin-top: 15px; padding: 10px 15px; font-size: 16px; }
+    canvas { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="content">
+    <h1>📊 Student Data Tracker</h1>
+
+    <label>Student Name:</label>
+    <input type="text" id="studentName">
+
+    <label>Class:</label>
+    <input type="text" id="studentClass">
+
+    <label>Teacher:</label>
+    <input type="text" id="teacherName">
+
+    <label>Career Goal:</label>
+    <input type="text" id="careerGoal">
+
+    <label>Academic Goal:</label>
+    <input type="text" id="academicGoal">
+
+    <h3>Weekly Check-ins</h3>
+    <label>Date 1:</label>
+    <input type="date" id="checkin1Date">
+    <textarea id="checkin1" placeholder="Write your check-in..."></textarea>
+
+    <label>Date 2:</label>
+    <input type="date" id="checkin2Date">
+    <textarea id="checkin2" placeholder="Write your check-in..."></textarea>
+
+    <label>Date 3:</label>
+    <input type="date" id="checkin3Date">
+    <textarea id="checkin3" placeholder="Write your check-in..."></textarea>
+
+    <h3>Test Scores</h3>
+    <label>Test Name:</label>
+    <input type="text" id="testName">
+    <label>Score:</label>
+    <input type="number" id="testScore">
+    <button onclick="addTest()">➕ Add Test Score</button>
+
+    <canvas id="scoreChart" width="400" height="200"></canvas>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    let assessmentData = [];
+    let testNames = [];
+
+    function addTest() {
+      const testName = document.getElementById("testName").value;
+      const testScore = parseInt(document.getElementById("testScore").value);
+
+      if (testName && !isNaN(testScore)) {
+        testNames.push(testName);
+        assessmentData.push(testScore);
+        updateChart();
+      }
+    }
+
+    function updateChart() {
+      const ctx = document.getElementById("scoreChart").getContext("2d");
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: testNames,
+          datasets: [{
+            label: "Test Scores",
+            data: assessmentData,
+            borderColor: "blue",
+            fill: false
+          }]
+        }
+      });
+    }
+
+    async function saveToGoogleSheets() {
+      const url = "YOUR_WEB_APP_URL"; // ⬅️ Replace with your Apps Script URL
+
+      const data = {
+        studentName: document.getElementById("studentName").value,
+        studentClass: document.getElementById("studentClass").value,
+        teacherName: document.getElementById("teacherName").value,
+        careerGoal: document.getElementById("careerGoal").value,
+        academicGoal: document.getElementById("academicGoal").value,
+        checkins: [
+          { date: document.getElementById("checkin1Date").value, text: document.getElementById("checkin1").value },
+          { date: document.getElementById("checkin2Date").value, text: document.getElementById("checkin2").value },
+          { date: document.getElementById("checkin3Date").value, text: document.getElementById("checkin3").value }
+        ],
+        testNames: testNames,
+        assessmentData: assessmentData
+      };
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if (result.status === "success") {
+          alert("✅ Data saved to Google Sheets!");
+        } else {
+          alert("⚠️ Error saving data.");
+        }
+      } catch (error) {
+        console.error("Save failed:", error);
+        alert("❌ Could not save data. Check connection.");
+      }
+    }
+
+    // Add Save button dynamically
+    document.addEventListener("DOMContentLoaded", function() {
+      const saveButton = document.createElement("button");
+      saveButton.textContent = "💾 Save Progress";
+      saveButton.onclick = saveToGoogleSheets;
+      document.querySelector(".content").appendChild(saveButton);
+    });
+  </script>
+</body>
+</html>
