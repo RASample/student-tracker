@@ -9,55 +9,76 @@
     input, textarea { width: 100%; padding: 6px; margin-top: 4px; }
     button { margin-top: 15px; padding: 10px 15px; font-size: 16px; }
     canvas { margin-top: 20px; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <div class="content">
     <h1>📊 Student Data Tracker</h1>
 
-    <label>Student Name:</label>
-    <input type="text" id="studentName">
+    <!-- Login Form -->
+    <div id="loginSection">
+      <label>Student Name:</label>
+      <input type="text" id="loginName">
+      <label>Passcode:</label>
+      <input type="password" id="loginPasscode">
+      <button onclick="login()">🔑 Log In</button>
+    </div>
 
-    <label>Class:</label>
-    <input type="text" id="studentClass">
+    <!-- Tracker Form -->
+    <div id="trackerSection" class="hidden">
+      <h2>Welcome, <span id="studentDisplay"></span></h2>
 
-    <label>Teacher:</label>
-    <input type="text" id="teacherName">
+      <label>Class:</label>
+      <input type="text" id="studentClass">
 
-    <label>Career Goal:</label>
-    <input type="text" id="careerGoal">
+      <label>Teacher:</label>
+      <input type="text" id="teacherName">
 
-    <label>Academic Goal:</label>
-    <input type="text" id="academicGoal">
+      <label>Career Goal:</label>
+      <input type="text" id="careerGoal">
 
-    <h3>Weekly Check-ins</h3>
-    <label>Date 1:</label>
-    <input type="date" id="checkin1Date">
-    <textarea id="checkin1" placeholder="Write your check-in..."></textarea>
+      <label>Academic Goal:</label>
+      <input type="text" id="academicGoal">
 
-    <label>Date 2:</label>
-    <input type="date" id="checkin2Date">
-    <textarea id="checkin2" placeholder="Write your check-in..."></textarea>
+      <h3>Weekly Check-ins</h3>
+      <label>Date 1:</label>
+      <input type="date" id="checkin1Date">
+      <textarea id="checkin1" placeholder="Write your check-in..."></textarea>
 
-    <label>Date 3:</label>
-    <input type="date" id="checkin3Date">
-    <textarea id="checkin3" placeholder="Write your check-in..."></textarea>
+      <label>Date 2:</label>
+      <input type="date" id="checkin2Date">
+      <textarea id="checkin2" placeholder="Write your check-in..."></textarea>
 
-    <h3>Test Scores</h3>
-    <label>Test Name:</label>
-    <input type="text" id="testName">
-    <label>Score:</label>
-    <input type="number" id="testScore">
-    <button onclick="addTest()">➕ Add Test Score</button>
+      <label>Date 3:</label>
+      <input type="date" id="checkin3Date">
+      <textarea id="checkin3" placeholder="Write your check-in..."></textarea>
 
-    <canvas id="scoreChart" width="400" height="200"></canvas>
+      <h3>Test Scores</h3>
+      <label>Test Name:</label>
+      <input type="text" id="testName">
+      <label>Score:</label>
+      <input type="number" id="testScore">
+      <button onclick="addTest()">➕ Add Test Score</button>
+
+      <canvas id="scoreChart" width="400" height="200"></canvas>
+
+      <br>
+      <button onclick="saveToGoogleSheets()">💾 Save Progress</button>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // Replace with your Apps Script Web App URL:
+    const BASE_URL = "YOUR_WEB_APP_URL"; 
+
+    let currentName = "";
+    let currentPass = "";
     let assessmentData = [];
     let testNames = [];
 
+    // Add test score to chart
     function addTest() {
       const testName = document.getElementById("testName").value;
       const testScore = parseInt(document.getElementById("testScore").value);
@@ -69,6 +90,7 @@
       }
     }
 
+    // Draw chart
     function updateChart() {
       const ctx = document.getElementById("scoreChart").getContext("2d");
       new Chart(ctx, {
@@ -85,11 +107,50 @@
       });
     }
 
-    async function saveToGoogleSheets() {
-      const url = "https://script.google.com/macros/s/AKfycbx1ugETH43H6xQMmIp50NoBolfTjQD3jvVTt50FPW7QlhWsciQ7nX36bpJyFPqZF5Mi/exec"; // ⬅️ Replace with your Apps Script URL
+    // Login and load last saved data
+    async function login() {
+      currentName = document.getElementById("loginName").value.trim();
+      currentPass = document.getElementById("loginPasscode").value.trim();
 
+      if (!currentName || !currentPass) {
+        alert("Please enter name and passcode.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`${BASE_URL}?name=${encodeURIComponent(currentName)}&passcode=${encodeURIComponent(currentPass)}`);
+        const data = await res.json();
+
+        if (data.error) {
+          alert("No data found or invalid login. Starting new profile.");
+        } else {
+          // Prefill fields with last saved data
+          document.getElementById("studentClass").value = data.Class || "";
+          document.getElementById("teacherName").value = data.Teacher || "";
+          document.getElementById("careerGoal").value = data["Career Goal"] || "";
+          document.getElementById("academicGoal").value = data["Academic Goal"] || "";
+
+          // Reset test data
+          testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
+          assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
+          updateChart();
+        }
+
+        document.getElementById("studentDisplay").textContent = currentName;
+        document.getElementById("loginSection").classList.add("hidden");
+        document.getElementById("trackerSection").classList.remove("hidden");
+
+      } catch (err) {
+        console.error("Login failed", err);
+        alert("❌ Could not load data. Try again.");
+      }
+    }
+
+    // Save current data to Google Sheets
+    async function saveToGoogleSheets() {
       const data = {
-        studentName: document.getElementById("studentName").value,
+        studentName: currentName,
+        passcode: currentPass,
         studentClass: document.getElementById("studentClass").value,
         teacherName: document.getElementById("teacherName").value,
         careerGoal: document.getElementById("careerGoal").value,
@@ -104,7 +165,7 @@
       };
 
       try {
-        const response = await fetch(url, {
+        const response = await fetch(BASE_URL, {
           method: "POST",
           body: JSON.stringify(data)
         });
@@ -117,17 +178,9 @@
         }
       } catch (error) {
         console.error("Save failed:", error);
-        alert("❌ Could not save data. Check connection.");
+        alert("❌ Could not save data.");
       }
     }
-
-    // Add Save button dynamically
-    document.addEventListener("DOMContentLoaded", function() {
-      const saveButton = document.createElement("button");
-      saveButton.textContent = "💾 Save Progress";
-      saveButton.onclick = saveToGoogleSheets;
-      document.querySelector(".content").appendChild(saveButton);
-    });
   </script>
 </body>
 </html>
