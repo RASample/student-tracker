@@ -71,7 +71,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     // ⬅️ Replace this with your Apps Script Web App /exec URL
-    const BASE_URL = "https://script.google.com/macros/s/AKfycbwxXIDhnRGpBVzMXNQ1JqyyTot9X7vQwfxZQAm-tiVVTs1iH4pXtFtFAryHFz6-lj2B/exec";
+    const BASE_URL = "https://script.google.com/macros/s/AKfycbxu6XWO2h0pym_xJ4woeDb2p5cd1dVEWne-7_Fj5K_fJs7U7WagKdME8Dr65O1YP35A/exec";
 
     let currentName = "";
     let currentPass = "";
@@ -119,10 +119,9 @@
       }
 
       try {
-        const res = await fetch(`${BASE_URL}?name=${encodeURIComponent(currentName)}&passcode=${encodeURIComponent(currentPass)}`, {
-          method: "GET"
-        });
-        const data = await res.json();
+        const res = await fetch(`${BASE_URL}?name=${encodeURIComponent(currentName)}&passcode=${encodeURIComponent(currentPass)}`, { method: "GET" });
+        const raw = await res.text(); // get raw HTML-wrapped JSON
+        const data = JSON.parse(raw); // parse back into JSON
 
         if (data.error) {
           alert("No data found or invalid login. A new profile will be created.");
@@ -151,7 +150,7 @@
 
     // --- Save ---
     async function saveToGoogleSheets() {
-      const data = {
+      const payload = {
         studentName: currentName,
         passcode: currentPass,
         studentClass: document.getElementById("studentClass").value,
@@ -171,10 +170,12 @@
         const response = await fetch(BASE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data)
+          body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
+        const raw = await response.text(); // HtmlService returns text
+        const result = JSON.parse(raw);   // parse JSON inside
+
         if (result.status === "success") {
           alert("✅ Data saved to Google Sheets!");
         } else {
