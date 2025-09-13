@@ -70,8 +70,9 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // ⬅️ Replace this with your Apps Script Web App /exec URL
-    const BASE_URL = "https://script.google.com/macros/s/AKfycbxu6XWO2h0pym_xJ4woeDb2p5cd1dVEWne-7_Fj5K_fJs7U7WagKdME8Dr65O1YP35A/exec";
+    // ✅ Use corsproxy.io to bypass CORS
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxu6XWO2h0pym_xJ4woeDb2p5cd1dVEWne-7_Fj5K_fJs7U7WagKdME8Dr65O1YP35A/exec"; // <--- your Apps Script /exec URL
+    const BASE_URL = "https://corsproxy.io/?" + encodeURIComponent(SCRIPT_URL);
 
     let currentName = "";
     let currentPass = "";
@@ -120,8 +121,8 @@
 
       try {
         const res = await fetch(`${BASE_URL}?name=${encodeURIComponent(currentName)}&passcode=${encodeURIComponent(currentPass)}`, { method: "GET" });
-        const raw = await res.text(); // get raw HTML-wrapped JSON
-        const data = JSON.parse(raw); // parse back into JSON
+        const raw = await res.text();
+        const data = JSON.parse(raw);
 
         if (data.error) {
           alert("No data found or invalid login. A new profile will be created.");
@@ -173,8 +174,8 @@
           body: JSON.stringify(payload)
         });
 
-        const raw = await response.text(); // HtmlService returns text
-        const result = JSON.parse(raw);   // parse JSON inside
+        const raw = await response.text();
+        const result = JSON.parse(raw);
 
         if (result.status === "success") {
           alert("✅ Data saved to Google Sheets!");
