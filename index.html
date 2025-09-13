@@ -28,26 +28,26 @@
 
   <button onclick="saveProgress()">💾 Save Progress</button>
   <button onclick="loadProgress()">📂 Load Progress</button>
+  <button onclick="testBackend()">🚀 Test Backend</button>
 
   <script>
     let tokenClient;
     let accessToken = null;
     let googleUserEmail = null;
 
-    // Use Deployment ID (not Script ID!)
-    const DEPLOYMENT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2FOPX5KjqwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8";
+    // Always use Script ID with Execution API
+    const SCRIPT_ID = "1eJrtJDqiAo_78DtaZ0gV8d3q7i_Zra3EabFoamSuXbTV9Albhv5icBor";
 
     function onSignIn(response) {
       document.getElementById("status").innerText = "Signed in!";
       initTokenClient();
-      // decode email from credential
-      googleUserEmail = response.clientId ? response.clientId : "unknown@example.com";
+      // we’ll use sub/email from token later
     }
 
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com",
-        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.external_request",
+        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/userinfo.email",
         callback: (tokenResponse) => {
           accessToken = tokenResponse.access_token;
           console.log("Got access token:", accessToken);
@@ -57,7 +57,7 @@
     }
 
     function callBackend(funcName, params, callback) {
-      fetch(`https://script.googleapis.com/v1/scripts/${DEPLOYMENT_ID}:run`, {
+      fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -82,19 +82,19 @@
 
     function saveProgress() {
       const data = {
-        email: googleUserEmail,
+        email: googleUserEmail || "test@example.com",
         className: document.getElementById("className").value,
         teacherName: document.getElementById("teacherName").value,
         careerGoal: document.getElementById("careerGoal").value,
         academicGoal: document.getElementById("academicGoal").value,
-        checkIns: [], // placeholder
-        tests: []     // placeholder
+        checkIns: [],
+        tests: []
       };
       callBackend("saveStudentData", [data], result => alert("✅ " + result));
     }
 
     function loadProgress() {
-      callBackend("loadStudentData", [googleUserEmail], student => {
+      callBackend("loadStudentData", [googleUserEmail || "test@example.com"], student => {
         if (student.error) {
           alert("❌ " + student.error);
         } else {
@@ -105,6 +105,10 @@
           alert("✅ Loaded student data!");
         }
       });
+    }
+
+    function testBackend() {
+      callBackend("testSave", [], result => alert("✅ Backend says: " + result));
     }
   </script>
 </body>
