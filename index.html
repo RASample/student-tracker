@@ -4,66 +4,22 @@
   <meta charset="UTF-8">
   <title>📊 Student Data Tracker</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .content { max-width: 800px; margin: auto; }
-    label { display: block; margin-top: 10px; font-weight: bold; }
-    input, textarea { width: 100%; padding: 6px; margin-top: 4px; }
-    button { margin-top: 15px; padding: 10px 15px; font-size: 16px; }
-    .hidden { display: none; }
-  </style>
 </head>
 <body>
-  <div class="content">
-    <h1>📊 Student Data Tracker</h1>
+  <h1>📊 Student Data Tracker</h1>
+  <div id="loginDiv"></div>
+  <p id="status">Please sign in with Google</p>
 
-    <!-- Login Section -->
-    <div id="loginDiv"></div>
-    <p id="status">Please sign in with Google</p>
-
-    <!-- Tracker Section -->
-    <div id="trackerSection" class="hidden">
-      <h2>Welcome, <span id="studentDisplay"></span></h2>
-
-      <label>Class:</label>
-      <input type="text" id="studentClass">
-
-      <label>Teacher:</label>
-      <input type="text" id="teacherName">
-
-      <label>Career Goal:</label>
-      <input type="text" id="careerGoal">
-
-      <label>Academic Goal:</label>
-      <input type="text" id="academicGoal">
-
-      <h3>Check-ins</h3>
-      <input type="date" id="checkin1Date"> <textarea id="checkin1"></textarea>
-      <input type="date" id="checkin2Date"> <textarea id="checkin2"></textarea>
-      <input type="date" id="checkin3Date"> <textarea id="checkin3"></textarea>
-
-      <h3>Tests</h3>
-      <label>Test Name:</label> <input type="text" id="testName">
-      <label>Score:</label> <input type="number" id="testScore">
-      <button onclick="addTest()">➕ Add Test</button>
-
-      <ul id="testList"></ul>
-
-      <button onclick="saveData()">💾 Save Progress</button>
-      <button onclick="loadData()">📂 Load Progress</button>
-    </div>
-  </div>
+  <button onclick="saveData()">💾 Save Progress</button>
+  <button onclick="loadData()">📂 Load Progress</button>
+  <button onclick="testSave()">🚀 Test Backend Save</button>
 
   <script>
-    // 🔑 Replace with your Client ID and Script ID
-    const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com";
-    const SCRIPT_ID = "1eJrtJDqiAo_78DtaZ0gV8d3q7i_Zra3EabFoamSuXbTV9Albhv5icBor"; // Copy from Apps Script project settings
-
+    const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"; // your OAuth client ID
+    const SCRIPT_ID = "YOUR_SCRIPT_ID_HERE"; // 👈 Replace with Apps Script Script ID
     let accessToken = null;
-    let testNames = [];
-    let assessmentData = [];
 
-    // --- Google Sign-in Setup ---
+    // Google Sign-in setup
     function initGoogleLogin() {
       google.accounts.id.initialize({
         client_id: CLIENT_ID,
@@ -76,15 +32,12 @@
     }
 
     function handleCredentialResponse(response) {
-      // Google Identity returns a JWT; we need an OAuth token for Apps Script
-      // Use Token Client to request access token
       const tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/spreadsheets",
         callback: (tokenResponse) => {
           accessToken = tokenResponse.access_token;
           document.getElementById("status").innerText = "✅ Signed in!";
-          document.getElementById("trackerSection").classList.remove("hidden");
         }
       });
       tokenClient.requestAccessToken();
@@ -92,78 +45,75 @@
 
     window.onload = initGoogleLogin;
 
-    // --- Save Data ---
+    // Save real student data (dummy values for now)
     async function saveData() {
       const studentObj = {
-        studentName: "Demo Student", // could come from login form
-        passcode: "1234",            // optional (legacy)
-        studentClass: document.getElementById("studentClass").value,
-        teacherName: document.getElementById("teacherName").value,
-        careerGoal: document.getElementById("careerGoal").value,
-        academicGoal: document.getElementById("academicGoal").value,
-        checkins: [
-          { date: document.getElementById("checkin1Date").value, text: document.getElementById("checkin1").value },
-          { date: document.getElementById("checkin2Date").value, text: document.getElementById("checkin2").value },
-          { date: document.getElementById("checkin3Date").value, text: document.getElementById("checkin3").value }
-        ],
-        testNames,
-        assessmentData
+        studentName: "Demo Student",
+        passcode: "1234",
+        studentClass: "Math",
+        teacherName: "Mr. Smith",
+        careerGoal: "Engineer",
+        academicGoal: "Graduate with honors",
+        checkins: [{ date: "2025-09-13", text: "Started studying" }],
+        testNames: ["Quiz 1"],
+        assessmentData: [85]
       };
 
       const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
-      const body = {
-        function: "doPost",
-        parameters: [studentObj],
-        devMode: true
-      };
+      const body = { function: "doPost", parameters: [studentObj], devMode: true };
 
       const res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-
-      const data = await res.json();
-      console.log("Save Response:", data);
-      alert("Save complete! Check sheet.");
+      console.log(await res.json());
+      alert("Save sent! Check your sheet.");
     }
 
-    // --- Load Data ---
+    // Load data
     async function loadData() {
       const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
-      const body = {
-        function: "doGet",
-        parameters: [{ name: "Demo Student", passcode: "1234" }],
-        devMode: true
-      };
+      const body = { function: "doGet", parameters: [{ name: "Demo Student", passcode: "1234" }], devMode: true };
 
       const res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
+        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
-
-      const data = await res.json();
-      console.log("Load Response:", data);
-      alert("Load complete! Check console for data.");
+      console.log(await res.json());
+      alert("Load sent! Check console.");
     }
 
-    // --- Add Test ---
-    function addTest() {
-      const name = document.getElementById("testName").value;
-      const score = parseInt(document.getElementById("testScore").value);
-      if (name && !isNaN(score)) {
-        testNames.push(name);
-        assessmentData.push(score);
-        const li = document.createElement("li");
-        li.innerText = `${name}: ${score}`;
-        document.getElementById("testList").appendChild(li);
+    // 🚀 Hardcoded Test Save (backend test)
+    async function testSave() {
+      const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
+
+      const testData = {
+        studentName: "Test Student",
+        passcode: "0000",
+        studentClass: "Science",
+        teacherName: "Test Teacher",
+        careerGoal: "Astronaut",
+        academicGoal: "Ace everything",
+        checkins: [{ date: "2025-09-13", text: "This is a test check-in" }],
+        testNames: ["Sample Test"],
+        assessmentData: [100]
+      };
+
+      const body = { function: "doPost", parameters: [testData], devMode: true };
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        console.log(await res.json());
+        alert("✅ Test Save sent, check your Google Sheet!");
+      } catch (err) {
+        console.error("❌ Test Save Error:", err);
       }
     }
   </script>
