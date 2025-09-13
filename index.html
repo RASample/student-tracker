@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Student Data Tracker</title>
+  <meta charset="UTF-8">
+  <title>📊 Student Data Tracker</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     .content { max-width: 800px; margin: auto; }
     label { display: block; margin-top: 10px; font-weight: bold; }
     input, textarea { width: 100%; padding: 6px; margin-top: 4px; }
     button { margin-top: 15px; padding: 10px 15px; font-size: 16px; }
-    canvas { margin-top: 20px; }
     .hidden { display: none; }
   </style>
 </head>
@@ -17,13 +18,8 @@
     <h1>📊 Student Data Tracker</h1>
 
     <!-- Login Section -->
-    <div id="loginSection">
-      <label>Student Name:</label>
-      <input type="text" id="loginName">
-      <label>Passcode:</label>
-      <input type="password" id="loginPasscode">
-      <button onclick="login()">🔑 Log In</button>
-    </div>
+    <div id="loginDiv"></div>
+    <p id="status">Please sign in with Google</p>
 
     <!-- Tracker Section -->
     <div id="trackerSection" class="hidden">
@@ -41,119 +37,66 @@
       <label>Academic Goal:</label>
       <input type="text" id="academicGoal">
 
-      <h3>Weekly Check-ins</h3>
-      <label>Date 1:</label>
-      <input type="date" id="checkin1Date">
-      <textarea id="checkin1" placeholder="Write your check-in..."></textarea>
+      <h3>Check-ins</h3>
+      <input type="date" id="checkin1Date"> <textarea id="checkin1"></textarea>
+      <input type="date" id="checkin2Date"> <textarea id="checkin2"></textarea>
+      <input type="date" id="checkin3Date"> <textarea id="checkin3"></textarea>
 
-      <label>Date 2:</label>
-      <input type="date" id="checkin2Date">
-      <textarea id="checkin2" placeholder="Write your check-in..."></textarea>
+      <h3>Tests</h3>
+      <label>Test Name:</label> <input type="text" id="testName">
+      <label>Score:</label> <input type="number" id="testScore">
+      <button onclick="addTest()">➕ Add Test</button>
 
-      <label>Date 3:</label>
-      <input type="date" id="checkin3Date">
-      <textarea id="checkin3" placeholder="Write your check-in..."></textarea>
+      <ul id="testList"></ul>
 
-      <h3>Test Scores</h3>
-      <label>Test Name:</label>
-      <input type="text" id="testName">
-      <label>Score:</label>
-      <input type="number" id="testScore">
-      <button onclick="addTest()">➕ Add Test Score</button>
-
-      <canvas id="scoreChart" width="400" height="200"></canvas>
-
-      <br>
-      <button onclick="saveToGoogleSheets()">💾 Save Progress</button>
+      <button onclick="saveData()">💾 Save Progress</button>
+      <button onclick="loadData()">📂 Load Progress</button>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // ✅ Use corsproxy.io to bypass CORS
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwh8ZNRVSvmpuWHzNqvkBqFYVANOrOTOooNj-OfF7hcrRwoO4UWPW2pRBNvkuuUfJaYtg/exec"; // <--- your Apps Script /exec URL
-    const BASE_URL = "https://corsproxy.io/?" + encodeURIComponent(SCRIPT_URL);
+    // 🔑 Replace with your Client ID and Script ID
+    const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com";
+    const SCRIPT_ID = "1eJrtJDqiAo_78DtaZ0gV8d3q7i_Zra3EabFoamSuXbTV9Albhv5icBor"; // Copy from Apps Script project settings
 
-    let currentName = "";
-    let currentPass = "";
-    let assessmentData = [];
+    let accessToken = null;
     let testNames = [];
-    let chart;
+    let assessmentData = [];
 
-    // --- Chart update ---
-    function updateChart() {
-      const ctx = document.getElementById("scoreChart").getContext("2d");
-      if (chart) chart.destroy();
-      chart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: testNames,
-          datasets: [{
-            label: "Test Scores",
-            data: assessmentData,
-            borderColor: "blue",
-            fill: false
-          }]
+    // --- Google Sign-in Setup ---
+    function initGoogleLogin() {
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleCredentialResponse
+      });
+      google.accounts.id.renderButton(
+        document.getElementById("loginDiv"),
+        { theme: "outline", size: "large" }
+      );
+    }
+
+    function handleCredentialResponse(response) {
+      // Google Identity returns a JWT; we need an OAuth token for Apps Script
+      // Use Token Client to request access token
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/spreadsheets",
+        callback: (tokenResponse) => {
+          accessToken = tokenResponse.access_token;
+          document.getElementById("status").innerText = "✅ Signed in!";
+          document.getElementById("trackerSection").classList.remove("hidden");
         }
       });
+      tokenClient.requestAccessToken();
     }
 
-    // --- Add test score ---
-    function addTest() {
-      const testName = document.getElementById("testName").value;
-      const testScore = parseInt(document.getElementById("testScore").value);
-      if (testName && !isNaN(testScore)) {
-        testNames.push(testName);
-        assessmentData.push(testScore);
-        updateChart();
-      }
-    }
+    window.onload = initGoogleLogin;
 
-    // --- Login ---
-    async function login() {
-      currentName = document.getElementById("loginName").value.trim();
-      currentPass = document.getElementById("loginPasscode").value.trim();
-
-      if (!currentName || !currentPass) {
-        alert("Please enter name and passcode.");
-        return;
-      }
-
-      try {
-        const res = await fetch(`${BASE_URL}?name=${encodeURIComponent(currentName)}&passcode=${encodeURIComponent(currentPass)}`, { method: "GET" });
-        const raw = await res.text();
-        const data = JSON.parse(raw);
-
-        if (data.error) {
-          alert("No data found or invalid login. A new profile will be created.");
-        } else {
-          // Prefill fields
-          document.getElementById("studentClass").value = data.Class || "";
-          document.getElementById("teacherName").value = data.Teacher || "";
-          document.getElementById("careerGoal").value = data["Career Goal"] || "";
-          document.getElementById("academicGoal").value = data["Academic Goal"] || "";
-
-          testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
-          assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
-          updateChart();
-        }
-
-        // Show tracker
-        document.getElementById("studentDisplay").textContent = currentName;
-        document.getElementById("loginSection").classList.add("hidden");
-        document.getElementById("trackerSection").classList.remove("hidden");
-
-      } catch (err) {
-        console.error("Login failed", err);
-        alert("❌ Could not load data. Check your backend URL.");
-      }
-    }
-
-    // --- Save ---
-    async function saveToGoogleSheets() {
-      const payload = {
-        studentName: currentName,
-        passcode: currentPass,
+    // --- Save Data ---
+    async function saveData() {
+      const studentObj = {
+        studentName: "Demo Student", // could come from login form
+        passcode: "1234",            // optional (legacy)
         studentClass: document.getElementById("studentClass").value,
         teacherName: document.getElementById("teacherName").value,
         careerGoal: document.getElementById("careerGoal").value,
@@ -163,28 +106,64 @@
           { date: document.getElementById("checkin2Date").value, text: document.getElementById("checkin2").value },
           { date: document.getElementById("checkin3Date").value, text: document.getElementById("checkin3").value }
         ],
-        testNames: testNames,
-        assessmentData: assessmentData
+        testNames,
+        assessmentData
       };
 
-      try {
-        const response = await fetch(BASE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+      const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
+      const body = {
+        function: "doPost",
+        parameters: [studentObj],
+        devMode: true
+      };
 
-        const raw = await response.text();
-        const result = JSON.parse(raw);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
 
-        if (result.status === "success") {
-          alert("✅ Data saved to Google Sheets!");
-        } else {
-          alert("⚠️ Error saving data.");
-        }
-      } catch (error) {
-        console.error("Save failed:", error);
-        alert("❌ Could not save data. Check your backend URL.");
+      const data = await res.json();
+      console.log("Save Response:", data);
+      alert("Save complete! Check sheet.");
+    }
+
+    // --- Load Data ---
+    async function loadData() {
+      const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
+      const body = {
+        function: "doGet",
+        parameters: [{ name: "Demo Student", passcode: "1234" }],
+        devMode: true
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      console.log("Load Response:", data);
+      alert("Load complete! Check console for data.");
+    }
+
+    // --- Add Test ---
+    function addTest() {
+      const name = document.getElementById("testName").value;
+      const score = parseInt(document.getElementById("testScore").value);
+      if (name && !isNaN(score)) {
+        testNames.push(name);
+        assessmentData.push(score);
+        const li = document.createElement("li");
+        li.innerText = `${name}: ${score}`;
+        document.getElementById("testList").appendChild(li);
       }
     }
   </script>
