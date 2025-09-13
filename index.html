@@ -19,7 +19,7 @@
 
     <!-- Google Sign-in -->
     <div id="g_id_onload"
-         data-client_id="46574731783-9lrnc4btutj27tm08ce4ob2fe85t3kb1.apps.googleusercontent.com"
+         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"
          data-context="signin"
          data-ux_mode="popup"
          data-callback="onSignIn"
@@ -100,7 +100,7 @@
 
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: "46574731783-9lrnc4btutj27tm08ce4ob2fe85t3kb1.apps.googleusercontent.com",
+        client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com",
         scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
         callback: (tokenResponse) => {
           accessToken = tokenResponse.access_token;
