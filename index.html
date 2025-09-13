@@ -2,11 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Student Tracker Test</title>
+  <title>Student Tracker</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <h1>📊 Student Tracker Test</h1>
+  <h1>📊 Student Data Tracker</h1>
 
   <!-- Google Sign-in -->
   <div id="g_id_onload"
@@ -19,18 +19,29 @@
   <div class="g_id_signin" data-type="standard"></div>
 
   <p id="status">Not signed in</p>
-  <button onclick="testBackendSave()">🚀 Test Backend Save</button>
+
+  <!-- Simple Form -->
+  <label>Class: <input id="className"></label><br>
+  <label>Teacher: <input id="teacherName"></label><br>
+  <label>Career Goal: <input id="careerGoal"></label><br>
+  <label>Academic Goal: <input id="academicGoal"></label><br>
+
+  <button onclick="saveProgress()">💾 Save Progress</button>
+  <button onclick="loadProgress()">📂 Load Progress</button>
 
   <script>
     let tokenClient;
     let accessToken = null;
+    let googleUserEmail = null;
 
-    // Use Deployment ID, not Script ID
+    // Use Deployment ID (not Script ID!)
     const DEPLOYMENT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2FOPX5KjqwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8";
 
     function onSignIn(response) {
       document.getElementById("status").innerText = "Signed in!";
       initTokenClient();
+      // decode email from credential
+      googleUserEmail = response.clientId ? response.clientId : "unknown@example.com";
     }
 
     function initTokenClient() {
@@ -45,12 +56,7 @@
       tokenClient.requestAccessToken();
     }
 
-    function testBackendSave() {
-      if (!accessToken) {
-        alert("⚠️ Please sign in first.");
-        return;
-      }
-
+    function callBackend(funcName, params, callback) {
       fetch(`https://script.googleapis.com/v1/scripts/${DEPLOYMENT_ID}:run`, {
         method: "POST",
         headers: {
@@ -58,22 +64,46 @@
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          function: "testSave",  // backend function name in Apps Script
-          parameters: []
+          function: funcName,
+          parameters: params
         })
       })
       .then(res => res.json())
       .then(data => {
-        console.log("Execution API Response:", data);
+        console.log("Backend response:", data);
         if (data.error) {
           alert("❌ Backend error: " + data.error.message);
         } else {
-          alert("✅ " + data.response.result);
+          callback(data.response.result);
         }
       })
-      .catch(err => {
-        console.error("Fetch error:", err);
-        alert("❌ Request failed: " + err);
+      .catch(err => alert("❌ Fetch error: " + err));
+    }
+
+    function saveProgress() {
+      const data = {
+        email: googleUserEmail,
+        className: document.getElementById("className").value,
+        teacherName: document.getElementById("teacherName").value,
+        careerGoal: document.getElementById("careerGoal").value,
+        academicGoal: document.getElementById("academicGoal").value,
+        checkIns: [], // placeholder
+        tests: []     // placeholder
+      };
+      callBackend("saveStudentData", [data], result => alert("✅ " + result));
+    }
+
+    function loadProgress() {
+      callBackend("loadStudentData", [googleUserEmail], student => {
+        if (student.error) {
+          alert("❌ " + student.error);
+        } else {
+          document.getElementById("className").value = student.className;
+          document.getElementById("teacherName").value = student.teacherName;
+          document.getElementById("careerGoal").value = student.careerGoal;
+          document.getElementById("academicGoal").value = student.academicGoal;
+          alert("✅ Loaded student data!");
+        }
       });
     }
   </script>
