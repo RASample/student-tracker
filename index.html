@@ -1,120 +1,80 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>📊 Student Data Tracker</title>
+  <meta charset="utf-8">
+  <title>Student Tracker Test</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <h1>📊 Student Data Tracker</h1>
-  <div id="loginDiv"></div>
-  <p id="status">Please sign in with Google</p>
+  <h1>📊 Student Tracker Test</h1>
 
-  <button onclick="saveData()">💾 Save Progress</button>
-  <button onclick="loadData()">📂 Load Progress</button>
-  <button onclick="testSave()">🚀 Test Backend Save</button>
+  <!-- Sign in button -->
+  <div id="g_id_onload"
+       data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"
+       data-context="signin"
+       data-ux_mode="popup"
+       data-callback="onSignIn"
+       data-auto_select="false">
+  </div>
+  <div class="g_id_signin" data-type="standard"></div>
+
+  <p id="status">Not signed in</p>
+  <button onclick="testBackendSave()">🚀 Test Backend Save</button>
 
   <script>
-    const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"; // your OAuth client ID
-    const SCRIPT_ID = "1eJrtJDqiAo_78DtaZ0gV8d3q7i_Zra3EabFoamSuXbTV9Albhv5icBor"; // 👈 Replace with Apps Script Script ID
+    let tokenClient;
     let accessToken = null;
 
-    // Google Sign-in setup
-    function initGoogleLogin() {
-      google.accounts.id.initialize({
-        client_id: CLIENT_ID,
-        callback: handleCredentialResponse
-      });
-      google.accounts.id.renderButton(
-        document.getElementById("loginDiv"),
-        { theme: "outline", size: "large" }
-      );
+    const SCRIPT_ID = "1eJrtJDqiAo_78DtaZ0gV8d3q7i_Zra3EabFoamSuXbTV9Albhv5icBor";   // <-- replace with Apps Script Script ID
+    // Example: AKfycbx12345...
+
+    function onSignIn(response) {
+      document.getElementById("status").innerText = "Signed in!";
+      initTokenClient();
     }
 
-    function handleCredentialResponse(response) {
-      const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: "https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/spreadsheets",
+    function initTokenClient() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com",
+        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
         callback: (tokenResponse) => {
           accessToken = tokenResponse.access_token;
-          document.getElementById("status").innerText = "✅ Signed in!";
+          console.log("Got access token:", accessToken);
         }
       });
       tokenClient.requestAccessToken();
     }
 
-    window.onload = initGoogleLogin;
-
-    // Save real student data (dummy values for now)
-    async function saveData() {
-      const studentObj = {
-        studentName: "Demo Student",
-        passcode: "1234",
-        studentClass: "Math",
-        teacherName: "Mr. Smith",
-        careerGoal: "Engineer",
-        academicGoal: "Graduate with honors",
-        checkins: [{ date: "2025-09-13", text: "Started studying" }],
-        testNames: ["Quiz 1"],
-        assessmentData: [85]
-      };
-
-      const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
-      const body = { function: "doPost", parameters: [studentObj], devMode: true };
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      console.log(await res.json());
-      alert("Save sent! Check your sheet.");
-    }
-
-    // Load data
-    async function loadData() {
-      const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
-      const body = { function: "doGet", parameters: [{ name: "Demo Student", passcode: "1234" }], devMode: true };
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      console.log(await res.json());
-      alert("Load sent! Check console.");
-    }
-
-    // 🚀 Hardcoded Test Save (backend test)
-    async function testSave() {
-      const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
-
-      const testData = {
-        studentName: "Test Student",
-        passcode: "0000",
-        studentClass: "Science",
-        teacherName: "Test Teacher",
-        careerGoal: "Astronaut",
-        academicGoal: "Ace everything",
-        checkins: [{ date: "2025-09-13", text: "This is a test check-in" }],
-        testNames: ["Sample Test"],
-        assessmentData: [100]
-      };
-
-      const body = { function: "doPost", parameters: [testData], devMode: true };
-
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-
-        console.log(await res.json());
-        alert("✅ Test Save sent, check your Google Sheet!");
-      } catch (err) {
-        console.error("❌ Test Save Error:", err);
+    function testBackendSave() {
+      if (!accessToken) {
+        alert("⚠️ Please sign in first.");
+        return;
       }
+
+      fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          function: "testSave",  // backend function name
+          parameters: []
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        console.log("Execution API Response:", data);
+        if (data.error) {
+          alert("❌ Backend error: " + data.error.message);
+        } else {
+          alert("✅ " + data.response.result);
+        }
+      })
+      .catch(err => {
+        console.error("Fetch error:", err);
+        alert("❌ Request failed: " + err);
+      });
     }
   </script>
 </body>
