@@ -2,11 +2,11 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Student Tracker</title>
+  <title>Student Tracker Test</title>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <h1>📊 Student Data Tracker</h1>
+  <h1>📊 Student Tracker Test</h1>
 
   <!-- Google Sign-in -->
   <div id="g_id_onload"
@@ -19,35 +19,24 @@
   <div class="g_id_signin" data-type="standard"></div>
 
   <p id="status">Not signed in</p>
-
-  <!-- Simple Form -->
-  <label>Class: <input id="className"></label><br>
-  <label>Teacher: <input id="teacherName"></label><br>
-  <label>Career Goal: <input id="careerGoal"></label><br>
-  <label>Academic Goal: <input id="academicGoal"></label><br>
-
-  <button onclick="saveProgress()">💾 Save Progress</button>
-  <button onclick="loadProgress()">📂 Load Progress</button>
-  <button onclick="testBackend()">🚀 Test Backend</button>
+  <button onclick="testBackendSave()">🚀 Test Backend Save</button>
 
   <script>
     let tokenClient;
     let accessToken = null;
-    let googleUserEmail = null;
 
-    // Always use Script ID with Execution API
-    const SCRIPT_ID = "1eJrtJDqiAo_78DtaZ0gV8d3q7i_Zra3EabFoamSuXbTV9Albhv5icBor";
+    // Use Deployment ID, not Script ID
+    const DEPLOYMENT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2FOPX5KjqwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8";
 
     function onSignIn(response) {
       document.getElementById("status").innerText = "Signed in!";
       initTokenClient();
-      // we’ll use sub/email from token later
     }
 
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com",
-        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/userinfo.email",
+        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/script.projects https://www.googleapis.com/auth/script.external_request",
         callback: (tokenResponse) => {
           accessToken = tokenResponse.access_token;
           console.log("Got access token:", accessToken);
@@ -56,59 +45,36 @@
       tokenClient.requestAccessToken();
     }
 
-    function callBackend(funcName, params, callback) {
-      fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
+    function testBackendSave() {
+      if (!accessToken) {
+        alert("⚠️ Please sign in first.");
+        return;
+      }
+
+      fetch(`https://script.googleapis.com/v1/scripts/${DEPLOYMENT_ID}:run`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          function: funcName,
-          parameters: params
+          function: "testSave",  // backend function name in Apps Script
+          parameters: []
         })
       })
       .then(res => res.json())
       .then(data => {
-        console.log("Backend response:", data);
+        console.log("Execution API Response:", data);
         if (data.error) {
           alert("❌ Backend error: " + data.error.message);
         } else {
-          callback(data.response.result);
+          alert("✅ " + data.response.result);
         }
       })
-      .catch(err => alert("❌ Fetch error: " + err));
-    }
-
-    function saveProgress() {
-      const data = {
-        email: googleUserEmail || "test@example.com",
-        className: document.getElementById("className").value,
-        teacherName: document.getElementById("teacherName").value,
-        careerGoal: document.getElementById("careerGoal").value,
-        academicGoal: document.getElementById("academicGoal").value,
-        checkIns: [],
-        tests: []
-      };
-      callBackend("saveStudentData", [data], result => alert("✅ " + result));
-    }
-
-    function loadProgress() {
-      callBackend("loadStudentData", [googleUserEmail || "test@example.com"], student => {
-        if (student.error) {
-          alert("❌ " + student.error);
-        } else {
-          document.getElementById("className").value = student.className;
-          document.getElementById("teacherName").value = student.teacherName;
-          document.getElementById("careerGoal").value = student.careerGoal;
-          document.getElementById("academicGoal").value = student.academicGoal;
-          alert("✅ Loaded student data!");
-        }
+      .catch(err => {
+        console.error("Fetch error:", err);
+        alert("❌ Request failed: " + err);
       });
-    }
-
-    function testBackend() {
-      callBackend("testSave", [], result => alert("✅ Backend says: " + result));
     }
   </script>
 </body>
