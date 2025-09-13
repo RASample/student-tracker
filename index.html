@@ -1,33 +1,98 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <title>Student Tracker Test</title>
+  <title>Student Data Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .content { max-width: 800px; margin: auto; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, textarea { width: 100%; padding: 6px; margin-top: 4px; }
+    button { margin-top: 15px; padding: 10px 15px; font-size: 16px; }
+    canvas { margin-top: 20px; }
+    .hidden { display: none; }
+  </style>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
-  <h1>📊 Student Tracker Test</h1>
+  <div class="content">
+    <h1>📊 Student Data Tracker</h1>
 
-  <!-- Sign in button -->
-  <div id="g_id_onload"
-       data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"
-       data-context="signin"
-       data-ux_mode="popup"
-       data-callback="onSignIn"
-       data-auto_select="false">
+    <!-- Google Sign-in -->
+    <div id="g_id_onload"
+         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"
+         data-context="signin"
+         data-ux_mode="popup"
+         data-callback="onSignIn"
+         data-auto_select="false">
+    </div>
+    <div class="g_id_signin" data-type="standard"></div>
+    <p id="status">Not signed in</p>
+
+    <!-- Login Form -->
+    <div id="loginSection" class="hidden">
+      <label>Student Name:</label>
+      <input type="text" id="loginName">
+      <label>Passcode:</label>
+      <input type="password" id="loginPasscode">
+      <button onclick="login()">🔑 Log In</button>
+    </div>
+
+    <!-- Tracker Form -->
+    <div id="trackerSection" class="hidden">
+      <h2>Welcome, <span id="studentDisplay"></span></h2>
+
+      <label>Class:</label>
+      <input type="text" id="studentClass">
+
+      <label>Teacher:</label>
+      <input type="text" id="teacherName">
+
+      <label>Career Goal:</label>
+      <input type="text" id="careerGoal">
+
+      <label>Academic Goal:</label>
+      <input type="text" id="academicGoal">
+
+      <h3>Weekly Check-ins</h3>
+      <label>Date 1:</label>
+      <input type="date" id="checkin1Date">
+      <textarea id="checkin1" placeholder="Write your check-in..."></textarea>
+
+      <label>Date 2:</label>
+      <input type="date" id="checkin2Date">
+      <textarea id="checkin2" placeholder="Write your check-in..."></textarea>
+
+      <label>Date 3:</label>
+      <input type="date" id="checkin3Date">
+      <textarea id="checkin3" placeholder="Write your check-in..."></textarea>
+
+      <h3>Test Scores</h3>
+      <label>Test Name:</label>
+      <input type="text" id="testName">
+      <label>Score:</label>
+      <input type="number" id="testScore">
+      <button onclick="addTest()">➕ Add Test Score</button>
+
+      <canvas id="scoreChart" width="400" height="200"></canvas>
+
+      <br>
+      <button onclick="saveToGoogleSheets()">💾 Save Progress</button>
+    </div>
   </div>
-  <div class="g_id_signin" data-type="standard"></div>
 
-  <p id="status">Not signed in</p>
-  <button onclick="testBackendSave()">🚀 Test Backend Save</button>
-
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // Your Execution API Deployment ID
+    const DEPLOYMENT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw";
+
     let tokenClient;
     let accessToken = null;
+    let currentName = "";
+    let currentPass = "";
+    let assessmentData = [];
+    let testNames = [];
 
-    const SCRIPT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw";   // <-- replace with Apps Script Script ID
-    // Example: AKfycbx12345...
-
+    // Google sign-in
     function onSignIn(response) {
       document.getElementById("status").innerText = "Signed in!";
       initTokenClient();
@@ -39,42 +104,113 @@
         scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
         callback: (tokenResponse) => {
           accessToken = tokenResponse.access_token;
-          console.log("Got access token:", accessToken);
+          document.getElementById("loginSection").classList.remove("hidden");
         }
       });
       tokenClient.requestAccessToken();
     }
 
-    function testBackendSave() {
+    // Add test score
+    function addTest() {
+      const testName = document.getElementById("testName").value;
+      const testScore = parseInt(document.getElementById("testScore").value);
+
+      if (testName && !isNaN(testScore)) {
+        testNames.push(testName);
+        assessmentData.push(testScore);
+        updateChart();
+      }
+    }
+
+    // Update chart
+    function updateChart() {
+      const ctx = document.getElementById("scoreChart").getContext("2d");
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: testNames,
+          datasets: [{
+            label: "Test Scores",
+            data: assessmentData,
+            borderColor: "blue",
+            fill: false
+          }]
+        }
+      });
+    }
+
+    // Call Execution API helper
+    async function callScript(functionName, params) {
       if (!accessToken) {
         alert("⚠️ Please sign in first.");
-        return;
+        return null;
       }
 
-      fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
+      const res = await fetch(`https://script.googleapis.com/v1/scripts/${DEPLOYMENT_ID}:run`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          function: "testSave",  // backend function name
-          parameters: []
+          function: functionName,
+          parameters: params
         })
-      })
-      .then(res => res.json())
-      .then(data => {
-        console.log("Execution API Response:", data);
-        if (data.error) {
-          alert("❌ Backend error: " + data.error.message);
-        } else {
-          alert("✅ " + data.response.result);
-        }
-      })
-      .catch(err => {
-        console.error("Fetch error:", err);
-        alert("❌ Request failed: " + err);
       });
+      return res.json();
+    }
+
+    // Login
+    async function login() {
+      currentName = document.getElementById("loginName").value.trim();
+      currentPass = document.getElementById("loginPasscode").value.trim();
+
+      const response = await callScript("getStudentData", [currentName, currentPass]);
+
+      if (response.error || response.response?.result?.error) {
+        alert("No data found or invalid login. Starting new profile.");
+      } else {
+        const data = response.response.result;
+        document.getElementById("studentClass").value = data.Class || "";
+        document.getElementById("teacherName").value = data.Teacher || "";
+        document.getElementById("careerGoal").value = data["Career Goal"] || "";
+        document.getElementById("academicGoal").value = data["Academic Goal"] || "";
+
+        testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
+        assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
+        updateChart();
+      }
+
+      document.getElementById("studentDisplay").textContent = currentName;
+      document.getElementById("loginSection").classList.add("hidden");
+      document.getElementById("trackerSection").classList.remove("hidden");
+    }
+
+    // Save
+    async function saveToGoogleSheets() {
+      const data = {
+        studentName: currentName,
+        passcode: currentPass,
+        studentClass: document.getElementById("studentClass").value,
+        teacherName: document.getElementById("teacherName").value,
+        careerGoal: document.getElementById("careerGoal").value,
+        academicGoal: document.getElementById("academicGoal").value,
+        checkins: [
+          { date: document.getElementById("checkin1Date").value, text: document.getElementById("checkin1").value },
+          { date: document.getElementById("checkin2Date").value, text: document.getElementById("checkin2").value },
+          { date: document.getElementById("checkin3Date").value, text: document.getElementById("checkin3").value }
+        ],
+        testNames: testNames,
+        assessmentData: assessmentData
+      };
+
+      const response = await callScript("saveStudentData", [data]);
+
+      if (response.response?.result?.status === "success") {
+        alert("✅ Data saved to Google Sheets!");
+      } else {
+        alert("⚠️ Error saving data.");
+      }
     }
   </script>
 </body>
