@@ -19,27 +19,18 @@
 
     <!-- Google Sign-in -->
     <div id="g_id_onload"
-         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"
+         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com" 
          data-context="signin"
-         data-ux_mode="popup"
+         data-ux_mode="popup"   <!-- force popup flow -->
          data-callback="onSignIn"
          data-auto_select="false">
     </div>
     <div class="g_id_signin" data-type="standard"></div>
     <p id="status">Not signed in</p>
 
-    <!-- Login Form -->
-    <div id="loginSection" class="hidden">
-      <label>Student Name:</label>
-      <input type="text" id="loginName">
-      <label>Passcode:</label>
-      <input type="password" id="loginPasscode">
-      <button onclick="login()">🔑 Log In</button>
-    </div>
-
     <!-- Tracker Form -->
     <div id="trackerSection" class="hidden">
-      <h2>Welcome, <span id="studentDisplay"></span></h2>
+      <h2>Welcome! Your progress is tied to your Google account</h2>
 
       <label>Class:</label>
       <input type="text" id="studentClass">
@@ -82,39 +73,42 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // Your Execution API Deployment ID
+    // Replace with your Execution API Deployment ID
     const DEPLOYMENT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw";
 
     let tokenClient;
     let accessToken = null;
-    let currentName = "";
-    let currentPass = "";
     let assessmentData = [];
     let testNames = [];
 
-    // Google sign-in
+    // Google sign-in callback
     function onSignIn(response) {
+      console.log("Signed in:", response);
       document.getElementById("status").innerText = "Signed in!";
       initTokenClient();
+      tokenClient.requestAccessToken();  // immediately fetch token
     }
 
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com",
+        client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com", // replace
         scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
-        callback: (tokenResponse) => {
+        callback: async (tokenResponse) => {
           accessToken = tokenResponse.access_token;
-          document.getElementById("loginSection").classList.remove("hidden");
+          console.log("Got access token:", accessToken);
+
+          // Load data right after login
+          await loadStudentData();
+
+          document.getElementById("trackerSection").classList.remove("hidden");
         }
       });
-      tokenClient.requestAccessToken();
     }
 
-    // Add test score
+    // Chart handling
     function addTest() {
       const testName = document.getElementById("testName").value;
       const testScore = parseInt(document.getElementById("testScore").value);
-
       if (testName && !isNaN(testScore)) {
         testNames.push(testName);
         assessmentData.push(testScore);
@@ -122,7 +116,6 @@
       }
     }
 
-    // Update chart
     function updateChart() {
       const ctx = document.getElementById("scoreChart").getContext("2d");
       new Chart(ctx, {
@@ -139,13 +132,12 @@
       });
     }
 
-    // Call Execution API helper
+    // Execution API helper
     async function callScript(functionName, params) {
       if (!accessToken) {
         alert("⚠️ Please sign in first.");
         return null;
       }
-
       const res = await fetch(`https://script.googleapis.com/v1/scripts/${DEPLOYMENT_ID}:run`, {
         method: "POST",
         headers: {
@@ -157,40 +149,32 @@
           parameters: params
         })
       });
-      return res.json();
+      const data = await res.json();
+      console.log("Execution API Response:", data);
+      return data;
     }
 
-    // Login
-    async function login() {
-      currentName = document.getElementById("loginName").value.trim();
-      currentPass = document.getElementById("loginPasscode").value.trim();
-
-      const response = await callScript("getStudentData", [currentName, currentPass]);
-
+    // Load data for signed-in user
+    async function loadStudentData() {
+      const response = await callScript("getStudentData", []);
       if (response.error || response.response?.result?.error) {
-        alert("No data found or invalid login. Starting new profile.");
-      } else {
-        const data = response.response.result;
-        document.getElementById("studentClass").value = data.Class || "";
-        document.getElementById("teacherName").value = data.Teacher || "";
-        document.getElementById("careerGoal").value = data["Career Goal"] || "";
-        document.getElementById("academicGoal").value = data["Academic Goal"] || "";
-
-        testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
-        assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
-        updateChart();
+        alert("No existing data found. Starting fresh.");
+        return;
       }
+      const data = response.response.result;
+      document.getElementById("studentClass").value = data.Class || "";
+      document.getElementById("teacherName").value = data.Teacher || "";
+      document.getElementById("careerGoal").value = data["Career Goal"] || "";
+      document.getElementById("academicGoal").value = data["Academic Goal"] || "";
 
-      document.getElementById("studentDisplay").textContent = currentName;
-      document.getElementById("loginSection").classList.add("hidden");
-      document.getElementById("trackerSection").classList.remove("hidden");
+      testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
+      assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
+      updateChart();
     }
 
-    // Save
+    // Save progress
     async function saveToGoogleSheets() {
       const data = {
-        studentName: currentName,
-        passcode: currentPass,
         studentClass: document.getElementById("studentClass").value,
         teacherName: document.getElementById("teacherName").value,
         careerGoal: document.getElementById("careerGoal").value,
@@ -205,11 +189,10 @@
       };
 
       const response = await callScript("saveStudentData", [data]);
-
       if (response.response?.result?.status === "success") {
         alert("✅ Data saved to Google Sheets!");
       } else {
-        alert("⚠️ Error saving data.");
+        alert("⚠️ Error saving data: " + (response.response?.result?.message || "unknown"));
       }
     }
   </script>
