@@ -11,6 +11,152 @@
     canvas { margin-top: 20px; }
     .hidden { display: none; }
   </style>
+  <!-- IMPORTANT: define window.onSignIn BEFORE loading GSI -->
+  <script>
+    let tokenClient;
+    let accessToken = null;
+    let currentEmail = null;
+    let assessmentData = [];
+    let testNames = [];
+
+    // GSI callback must be global
+    window.onSignIn = function (response) {
+      console.log("GSI callback:", response);
+      document.getElementById("status").innerText = "Signing in…";
+      initTokenClient();
+      // explicitly request token after GSI signs the user in
+      tokenClient.requestAccessToken();
+    };
+
+    function initTokenClient() {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com", // <-- replace
+        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
+        callback: async (tokenResponse) => {
+          accessToken = tokenResponse.access_token;
+          console.log("Got access token:", accessToken);
+          await fetchEmail();           // get the signed-in user's email
+          await loadStudentData();      // load their last record
+          document.getElementById("trackerSection").classList.remove("hidden");
+        }
+      });
+    }
+
+    async function fetchEmail() {
+      try {
+        const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { "Authorization": `Bearer ${accessToken}` }
+        });
+        const info = await res.json();
+        currentEmail = info.email || null;
+        console.log("User info:", info);
+        document.getElementById("status").innerText =
+          currentEmail ? `Signed in as ${currentEmail}` : "Signed in!";
+      } catch (e) {
+        console.error("Failed to fetch userinfo:", e);
+        document.getElementById("status").innerText = "Signed in (email unavailable)";
+      }
+    }
+
+    // Execution API helper
+    async function callScript(functionName, params) {
+      if (!accessToken) {
+        alert("⚠️ Please sign in first.");
+        return null;
+      }
+      const res = await fetch(`https://script.googleapis.com/v1/scripts/AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw:run`, { // <-- replace
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${accessToken}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          function: functionName,
+          parameters: params,
+          devMode: true
+        })
+      });
+      const data = await res.json();
+      console.log(`[${functionName}] Execution API Response:`, data);
+      return data;
+    }
+
+    // Chart handling
+    function addTest() {
+      const testName = document.getElementById("testName").value;
+      const testScore = parseInt(document.getElementById("testScore").value);
+      if (testName && !isNaN(testScore)) {
+        testNames.push(testName);
+        assessmentData.push(testScore);
+        updateChart();
+      }
+    }
+
+    function updateChart() {
+      const ctx = document.getElementById("scoreChart").getContext("2d");
+      new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: testNames,
+          datasets: [{
+            label: "Test Scores",
+            data: assessmentData,
+            borderColor: "blue",
+            fill: false
+          }]
+        }
+      });
+    }
+
+    // Load data for signed-in user
+    async function loadStudentData() {
+      if (!currentEmail) return;
+      const resp = await callScript("getStudentData", [currentEmail]);
+      if (resp?.error || resp?.response?.result?.error) {
+        console.warn("No existing data. Starting fresh.");
+        return;
+      }
+      const data = resp.response.result;
+      document.getElementById("studentClass").value = data.Class || "";
+      document.getElementById("teacherName").value = data.Teacher || "";
+      document.getElementById("careerGoal").value = data["Career Goal"] || "";
+      document.getElementById("academicGoal").value = data["Academic Goal"] || "";
+
+      testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
+      assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
+      updateChart();
+    }
+
+    // Save progress
+    async function saveToGoogleSheets() {
+      if (!currentEmail) {
+        alert("⚠️ Not signed in.");
+        return;
+      }
+      const payload = {
+        studentClass: document.getElementById("studentClass").value,
+        teacherName: document.getElementById("teacherName").value,
+        careerGoal: document.getElementById("careerGoal").value,
+        academicGoal: document.getElementById("academicGoal").value,
+        checkins: [
+          { date: document.getElementById("checkin1Date").value, text: document.getElementById("checkin1").value },
+          { date: document.getElementById("checkin2Date").value, text: document.getElementById("checkin2").value },
+          { date: document.getElementById("checkin3Date").value, text: document.getElementById("checkin3").value }
+        ],
+        testNames: testNames,
+        assessmentData: assessmentData
+      };
+
+      const resp = await callScript("saveStudentData", [currentEmail, payload]);
+      const ok = resp?.response?.result?.status === "success";
+      if (ok) {
+        alert("✅ Data saved to Google Sheets!");
+      } else {
+        const msg = resp?.response?.result?.message || resp?.error?.message || "unknown";
+        alert("⚠️ Error saving data: " + msg);
+      }
+    }
+  </script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -19,9 +165,9 @@
 
     <!-- Google Sign-in -->
     <div id="g_id_onload"
-         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com" 
+         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"  
          data-context="signin"
-         data-ux_mode="popup"   
+         data-ux_mode="popup"
          data-callback="onSignIn"
          data-auto_select="false">
     </div>
@@ -72,129 +218,5 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script>
-    // Replace with your Execution API Deployment ID
-    const DEPLOYMENT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw";
-
-    let tokenClient;
-    let accessToken = null;
-    let assessmentData = [];
-    let testNames = [];
-
-    // Google sign-in callback
-    function onSignIn(response) {
-      console.log("Signed in:", response);
-      document.getElementById("status").innerText = "Signed in!";
-      initTokenClient();
-      tokenClient.requestAccessToken();  // immediately fetch token
-    }
-
-    function initTokenClient() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com", // replace
-        scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
-        callback: async (tokenResponse) => {
-          accessToken = tokenResponse.access_token;
-          console.log("Got access token:", accessToken);
-
-          // Load data right after login
-          await loadStudentData();
-
-          document.getElementById("trackerSection").classList.remove("hidden");
-        }
-      });
-    }
-
-    // Chart handling
-    function addTest() {
-      const testName = document.getElementById("testName").value;
-      const testScore = parseInt(document.getElementById("testScore").value);
-      if (testName && !isNaN(testScore)) {
-        testNames.push(testName);
-        assessmentData.push(testScore);
-        updateChart();
-      }
-    }
-
-    function updateChart() {
-      const ctx = document.getElementById("scoreChart").getContext("2d");
-      new Chart(ctx, {
-        type: "line",
-        data: {
-          labels: testNames,
-          datasets: [{
-            label: "Test Scores",
-            data: assessmentData,
-            borderColor: "blue",
-            fill: false
-          }]
-        }
-      });
-    }
-
-    // Execution API helper
-    async function callScript(functionName, params) {
-      if (!accessToken) {
-        alert("⚠️ Please sign in first.");
-        return null;
-      }
-      const res = await fetch(`https://script.googleapis.com/v1/scripts/${DEPLOYMENT_ID}:run`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          function: functionName,
-          parameters: params
-        })
-      });
-      const data = await res.json();
-      console.log("Execution API Response:", data);
-      return data;
-    }
-
-    // Load data for signed-in user
-    async function loadStudentData() {
-      const response = await callScript("getStudentData", []);
-      if (response.error || response.response?.result?.error) {
-        alert("No existing data found. Starting fresh.");
-        return;
-      }
-      const data = response.response.result;
-      document.getElementById("studentClass").value = data.Class || "";
-      document.getElementById("teacherName").value = data.Teacher || "";
-      document.getElementById("careerGoal").value = data["Career Goal"] || "";
-      document.getElementById("academicGoal").value = data["Academic Goal"] || "";
-
-      testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
-      assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
-      updateChart();
-    }
-
-    // Save progress
-    async function saveToGoogleSheets() {
-      const data = {
-        studentClass: document.getElementById("studentClass").value,
-        teacherName: document.getElementById("teacherName").value,
-        careerGoal: document.getElementById("careerGoal").value,
-        academicGoal: document.getElementById("academicGoal").value,
-        checkins: [
-          { date: document.getElementById("checkin1Date").value, text: document.getElementById("checkin1").value },
-          { date: document.getElementById("checkin2Date").value, text: document.getElementById("checkin2").value },
-          { date: document.getElementById("checkin3Date").value, text: document.getElementById("checkin3").value }
-        ],
-        testNames: testNames,
-        assessmentData: assessmentData
-      };
-
-      const response = await callScript("saveStudentData", [data]);
-      if (response.response?.result?.status === "success") {
-        alert("✅ Data saved to Google Sheets!");
-      } else {
-        alert("⚠️ Error saving data: " + (response.response?.result?.message || "unknown"));
-      }
-    }
-  </script>
 </body>
 </html>
