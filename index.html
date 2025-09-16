@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Student Data Tracker</title>
   <meta charset="utf-8" />
+  <title>Student Data Tracker</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     .content { max-width: 800px; margin: auto; }
@@ -13,11 +13,11 @@
     .hidden { display: none; }
   </style>
 
-  <!-- Define globals BEFORE loading the Google Identity script -->
+  <!-- Define app logic BEFORE loading the GSI script -->
   <script>
-    // ======= CONFIG — replace SCRIPT_ID with your Apps Script project Script ID =======
-    const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"; // your Web client
-    const SCRIPT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw"; // <-- from Apps Script Project settings (NOT the Sheet ID)
+    // ======= CONFIG (REPLACE THESE) =======
+    const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"; // <-- replace
+    const SCRIPT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw";                      // <-- replace (Apps Script Script ID)
 
     // ======= State =======
     let tokenClient;
@@ -32,18 +32,19 @@
       console.log("GSI callback:", response);
       document.getElementById("status").innerText = "Signing in…";
       initTokenClient();
-      tokenClient.requestAccessToken(); // explicitly fetch OAuth token
+      tokenClient.requestAccessToken(); // fetch OAuth token after GSI
     };
 
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
+        ux_mode: "popup",
         callback: async (tokenResponse) => {
           accessToken = tokenResponse.access_token;
           console.log("Got access token:", accessToken);
-          await fetchEmail();      // identify the user
-          await loadStudentData(); // fetch last saved record for this email
+          await fetchEmail();
+          await loadStudentData();
           document.getElementById("trackerSection").classList.remove("hidden");
         }
       });
@@ -71,7 +72,8 @@
         alert("⚠️ Please sign in first.");
         return null;
       }
-      const res = await fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
+      const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -80,28 +82,28 @@
         body: JSON.stringify({
           function: functionName,
           parameters: params,
-          devMode: true // run latest code without redeploying
+          devMode: true
         })
       });
 
-      // Network-level failure
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        console.error(`[${functionName}] HTTP ${res.status}`, text);
-        return { error: { message: `HTTP ${res.status}` } };
-      }
-
-      const data = await res.json();
+      let data;
+      try { data = await res.json(); } catch { data = { error: { message: `HTTP ${res.status}` } }; }
       console.log(`[${functionName}] Execution API Response:`, data);
       return data;
+    }
+
+    // Pretty-print Apps Script error payloads when present
+    function logScriptErrorPayload(resp) {
+      const d = resp?.error?.details?.[0];
+      if (!d) return;
+      console.error("Apps Script error:", d.errorType, d.errorMessage);
+      if (d.scriptStackTraceElements) console.table(d.scriptStackTraceElements);
     }
 
     // ======= Chart helpers =======
     function updateChart() {
       const ctx = document.getElementById("scoreChart").getContext("2d");
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
+      if (chartInstance) chartInstance.destroy();
       chartInstance = new Chart(ctx, {
         type: "line",
         data: {
@@ -131,26 +133,30 @@
       if (!currentEmail) return;
 
       const resp = await callScript("getStudentData", [currentEmail]);
-      const errMsg =
-        resp?.response?.result?.error ||
-        resp?.response?.error?.message ||
-        resp?.error?.message;
 
-      if (errMsg) {
-        console.warn("Load failed:", errMsg);
-        // Start fresh if nothing saved yet.
+      if (resp?.error) {               // transport or thrown Apps Script error
+        logScriptErrorPayload(resp);
+        console.warn("Load failed (transport/script error). Starting fresh.");
+        return;
+      }
+      if (resp?.response?.result?.error) {
+        console.warn("Load returned error:", resp.response.result.error);
         return;
       }
 
-      const data = resp.response.result;
+      const data = resp?.response?.result;
+      if (!data || typeof data !== "object") {
+        console.warn("Unexpected load payload:", data);
+        return;
+      }
 
-      document.getElementById("studentClass").value = data.Class || "";
-      document.getElementById("teacherName").value  = data.Teacher || "";
-      document.getElementById("careerGoal").value   = data["Career Goal"] || "";
-      document.getElementById("academicGoal").value = data["Academic Goal"] || "";
+      document.getElementById("studentClass").value  = data.Class || "";
+      document.getElementById("teacherName").value   = data.Teacher || "";
+      document.getElementById("careerGoal").value    = data["Career Goal"] || "";
+      document.getElementById("academicGoal").value  = data["Academic Goal"] || "";
 
       testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
-      assessmentData = (data["Test Scores"] || "").split(",").map(s => parseInt(s)).filter(n => !isNaN(n));
+      assessmentData = (data["Test Scores"] || "").split(",").map(s => parseFloat(s)).filter(n => Number.isFinite(n));
       updateChart();
     }
 
@@ -160,25 +166,32 @@
         return;
       }
       const payload = {
-        studentClass: document.getElementById("studentClass").value,
-        teacherName: document.getElementById("teacherName").value,
-        careerGoal: document.getElementById("careerGoal").value,
-        academicGoal: document.getElementById("academicGoal").value,
+        studentClass:  document.getElementById("studentClass").value,
+        teacherName:   document.getElementById("teacherName").value,
+        careerGoal:    document.getElementById("careerGoal").value,
+        academicGoal:  document.getElementById("academicGoal").value,
         checkins: [
           { date: document.getElementById("checkin1Date").value, text: document.getElementById("checkin1").value },
           { date: document.getElementById("checkin2Date").value, text: document.getElementById("checkin2").value },
           { date: document.getElementById("checkin3Date").value, text: document.getElementById("checkin3").value }
         ],
-        testNames: testNames,
-        assessmentData: assessmentData
+        testNames,
+        assessmentData
       };
 
       const resp = await callScript("saveStudentData", [currentEmail, payload]);
+
+      if (resp?.error) {
+        logScriptErrorPayload(resp);
+        alert("⚠️ Error saving data (script/transport). Check console.");
+        return;
+      }
+
       const ok = resp?.response?.result?.status === "success";
       if (ok) {
         alert("✅ Data saved to Google Sheets!");
       } else {
-        const msg = resp?.response?.result?.message || resp?.error?.message || "unknown";
+        const msg = resp?.response?.result?.message || "unknown";
         alert("⚠️ Error saving data: " + msg);
       }
     }
@@ -191,9 +204,9 @@
   <div class="content">
     <h1>📊 Student Data Tracker</h1>
 
-    <!-- Google Sign-in -->
+    <!-- Google Sign-in (make sure this CLIENT_ID matches the constant above) -->
     <div id="g_id_onload"
-         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"
+         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"  <!-- <-- replace; must match CLIENT_ID -->
          data-context="signin"
          data-ux_mode="popup"
          data-callback="onSignIn"
