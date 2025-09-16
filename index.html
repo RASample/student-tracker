@@ -2,7 +2,6 @@
 <html>
 <head>
   <title>Student Data Tracker</title>
-  <meta charset="utf-8" />
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     .content { max-width: 800px; margin: auto; }
@@ -12,38 +11,32 @@
     canvas { margin-top: 20px; }
     .hidden { display: none; }
   </style>
-
-  <!-- Define globals BEFORE loading the Google Identity script -->
+  <!-- IMPORTANT: define window.onSignIn BEFORE loading GSI -->
   <script>
-    // ======= CONFIG — replace SCRIPT_ID with your Apps Script project Script ID =======
-    const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"; // your Web client
-    const SCRIPT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw"; // <-- from Apps Script Project settings (NOT the Sheet ID)
-
-    // ======= State =======
     let tokenClient;
     let accessToken = null;
     let currentEmail = null;
-    let testNames = [];
     let assessmentData = [];
-    let chartInstance = null;
+    let testNames = [];
 
-    // ======= GSI callback (must be global) =======
+    // GSI callback must be global
     window.onSignIn = function (response) {
       console.log("GSI callback:", response);
       document.getElementById("status").innerText = "Signing in…";
       initTokenClient();
-      tokenClient.requestAccessToken(); // explicitly fetch OAuth token
+      // explicitly request token after GSI signs the user in
+      tokenClient.requestAccessToken();
     };
 
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
+        client_id: "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com", // <-- replace
         scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
         callback: async (tokenResponse) => {
           accessToken = tokenResponse.access_token;
           console.log("Got access token:", accessToken);
-          await fetchEmail();      // identify the user
-          await loadStudentData(); // fetch last saved record for this email
+          await fetchEmail();           // get the signed-in user's email
+          await loadStudentData();      // load their last record
           document.getElementById("trackerSection").classList.remove("hidden");
         }
       });
@@ -65,13 +58,13 @@
       }
     }
 
-    // ======= Execution API helper =======
+    // Execution API helper
     async function callScript(functionName, params) {
       if (!accessToken) {
         alert("⚠️ Please sign in first.");
         return null;
       }
-      const res = await fetch(`https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`, {
+      const res = await fetch(`https://script.googleapis.com/v1/scripts/AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw:run`, { // <-- replace
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
@@ -80,29 +73,28 @@
         body: JSON.stringify({
           function: functionName,
           parameters: params,
-          devMode: true // run latest code without redeploying
+          devMode: true
         })
       });
-
-      // Network-level failure
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        console.error(`[${functionName}] HTTP ${res.status}`, text);
-        return { error: { message: `HTTP ${res.status}` } };
-      }
-
       const data = await res.json();
       console.log(`[${functionName}] Execution API Response:`, data);
       return data;
     }
 
-    // ======= Chart helpers =======
+    // Chart handling
+    function addTest() {
+      const testName = document.getElementById("testName").value;
+      const testScore = parseInt(document.getElementById("testScore").value);
+      if (testName && !isNaN(testScore)) {
+        testNames.push(testName);
+        assessmentData.push(testScore);
+        updateChart();
+      }
+    }
+
     function updateChart() {
       const ctx = document.getElementById("scoreChart").getContext("2d");
-      if (chartInstance) {
-        chartInstance.destroy();
-      }
-      chartInstance = new Chart(ctx, {
+      new Chart(ctx, {
         type: "line",
         data: {
           labels: testNames,
@@ -116,37 +108,18 @@
       });
     }
 
-    function addTest() {
-      const testName = document.getElementById("testName").value;
-      const testScore = parseInt(document.getElementById("testScore").value);
-      if (testName && !isNaN(testScore)) {
-        testNames.push(testName);
-        assessmentData.push(testScore);
-        updateChart();
-      }
-    }
-
-    // ======= Load / Save =======
+    // Load data for signed-in user
     async function loadStudentData() {
       if (!currentEmail) return;
-
       const resp = await callScript("getStudentData", [currentEmail]);
-      const errMsg =
-        resp?.response?.result?.error ||
-        resp?.response?.error?.message ||
-        resp?.error?.message;
-
-      if (errMsg) {
-        console.warn("Load failed:", errMsg);
-        // Start fresh if nothing saved yet.
+      if (resp?.error || resp?.response?.result?.error) {
+        console.warn("No existing data. Starting fresh.");
         return;
       }
-
       const data = resp.response.result;
-
       document.getElementById("studentClass").value = data.Class || "";
-      document.getElementById("teacherName").value  = data.Teacher || "";
-      document.getElementById("careerGoal").value   = data["Career Goal"] || "";
+      document.getElementById("teacherName").value = data.Teacher || "";
+      document.getElementById("careerGoal").value = data["Career Goal"] || "";
       document.getElementById("academicGoal").value = data["Academic Goal"] || "";
 
       testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -154,6 +127,7 @@
       updateChart();
     }
 
+    // Save progress
     async function saveToGoogleSheets() {
       if (!currentEmail) {
         alert("⚠️ Not signed in.");
@@ -183,8 +157,6 @@
       }
     }
   </script>
-
-  <!-- Load the Google Identity Services library AFTER defining window.onSignIn -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
@@ -193,7 +165,7 @@
 
     <!-- Google Sign-in -->
     <div id="g_id_onload"
-         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"
+         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"  <!-- replace -->
          data-context="signin"
          data-ux_mode="popup"
          data-callback="onSignIn"
