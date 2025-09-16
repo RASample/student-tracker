@@ -35,6 +35,14 @@
       tokenClient.requestAccessToken(); // fetch OAuth token after GSI
     };
 
+    function logScriptErrorPayload(resp) {
+      const d = resp?.error?.details?.[0];
+      if (d) {
+        console.error("Apps Script error:", d.errorType, d.errorMessage);
+        if (d.scriptStackTraceElements) console.table(d.scriptStackTraceElements);
+      }
+    }
+
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
@@ -133,14 +141,15 @@
       if (!currentEmail) return;
 
       const resp = await callScript("getStudentData", [currentEmail]);
+      console.log("[getStudentData] Execution API Response:", resp);
 
       if (resp?.error) {               // transport or thrown Apps Script error
         logScriptErrorPayload(resp);
-        console.warn("Load failed (transport/script error). Starting fresh.");
+        console.warn("Load failed: ScriptError");
         return;
       }
       if (resp?.response?.result?.error) {
-        console.warn("Load returned error:", resp.response.result.error);
+        console.warn("No existing data:", resp.response.result.error);;
         return;
       }
 
