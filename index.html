@@ -128,6 +128,21 @@
       }
     }
 
+    function toStringArray(val) {
+      if (Array.isArray(val)) return val.map(x => (x ?? "").toString()).filter(Boolean);
+      if (typeof val === "string") return val.split(",").map(s => s.trim()).filter(Boolean);
+      if (val == null) return [];
+      return [(val).toString()];
+    }
+
+    function toNumberArray(val) {
+      if (Array.isArray(val)) return val.map(x => parseFloat(x)).filter(Number.isFinite);
+      if (typeof val === "string") return val.split(",").map(s => parseFloat(s)).filter(Number.isFinite);
+      if (typeof val === "number") return [val];
+      return [];
+    }
+
+
     // ======= Load / Save =======
     async function loadStudentData() {
       if (!currentEmail) return;
@@ -156,8 +171,8 @@
       document.getElementById("careerGoal").value    = data["Career Goal"] || "";
       document.getElementById("academicGoal").value  = data["Academic Goal"] || "";
 
-      testNames = (data["Test Names"] || "").split(",").map(s => s.trim()).filter(Boolean);
-      assessmentData = (data["Test Scores"] || "").split(",").map(s => parseFloat(s)).filter(n => Number.isFinite(n));
+      testNames = toStringArray(data["Test Names"]);
+      assessmentData = toNumberArray(data["Test Scores"]);
       updateChart();
     }
 
