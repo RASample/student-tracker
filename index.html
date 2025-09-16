@@ -136,7 +136,7 @@
 
       if (resp?.error) {               // transport or thrown Apps Script error
         logScriptErrorPayload(resp);
-        console.warn("Load failed: ScriptError");
+        console.warn("Load failed (transport/script error). Starting fresh.");
         return;
       }
       if (resp?.response?.result?.error) {
