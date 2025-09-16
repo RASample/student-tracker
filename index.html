@@ -35,14 +35,6 @@
       tokenClient.requestAccessToken(); // fetch OAuth token after GSI
     };
 
-    function logScriptErrorPayload(resp) {
-      const d = resp?.error?.details?.[0];
-      if (d) {
-        console.error("Apps Script error:", d.errorType, d.errorMessage);
-        if (d.scriptStackTraceElements) console.table(d.scriptStackTraceElements);
-      }
-    }
-
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
