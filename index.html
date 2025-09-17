@@ -58,9 +58,8 @@
     window.onSignIn = function (response) {
       console.log("GSI callback:", response);
       document.getElementById("status").innerText = "Signing in…";
-      showBusy("Loading your data…");
       initTokenClient();
-      tokenClient.requestAccessToken(); // fetch OAuth token after GSI
+      tokenClient.requestAccessToken();
     };
 
     function initTokenClient() {
@@ -71,14 +70,10 @@
         callback: async (tokenResponse) => {
           accessToken = tokenResponse.access_token;
           console.log("Got access token:", accessToken);
-          try {
-            await fetchEmail();
-            await loadStudentData();
-            document.getElementById("trackerSection").classList.remove("hidden");
-            isDirty = false; // just loaded
-          } finally {
-            hideBusy();
-          }
+          await fetchEmail();
+          await loadStudentData();
+          document.getElementById("trackerSection").classList.remove("hidden");
+          isDirty = false;
         }
       });
     }
@@ -206,8 +201,6 @@
 
       isSaving = true;
       showBusy("Saving in progress…");
-      const saveBtn = document.getElementById("saveBtn");
-      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
 
       const payload = {
         studentClass:  document.getElementById("studentClass").value,
