@@ -12,7 +12,7 @@
     canvas { margin-top: 20px; }
     .hidden { display: none; }
 
-    /* Busy modal */
+    /* Busy modal (used for saving only) */
     .modal {
       position: fixed; inset: 0; z-index: 9999;
       background: rgba(0,0,0,.55);
@@ -27,11 +27,11 @@
     }
   </style>
 
-  <!-- Define app logic BEFORE loading the GSI script -->
+  <!-- App logic BEFORE loading the GSI script -->
   <script>
     // ======= CONFIG (REPLACE THESE) =======
     const CLIENT_ID = "46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"; 
-    const SCRIPT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw";           
+    const SCRIPT_ID = "AKfycbwHTMHBdbdL5JoFD_yM2F0PX5kqjwjE3I6uC1IqGmKmwLxq0sV0grT9N8dC8pvd3dACRw";                     
 
     // ======= State =======
     let tokenClient;
@@ -45,7 +45,7 @@
     let isDirty = false;  // unsaved changes
     let isSaving = false; // guard double-clicks
 
-    // ======= Modal helpers =======
+    // ======= Modal helpers (used for saving) =======
     function showBusy(text) {
       document.getElementById("busyText").textContent = text || "Working…";
       document.getElementById("busyModal").classList.add("show");
@@ -54,7 +54,7 @@
       document.getElementById("busyModal").classList.remove("show");
     }
 
-    // ======= GSI callback (must be global) =======
+    // ======= GSI callback (no loading overlay) =======
     window.onSignIn = function (response) {
       console.log("GSI callback:", response);
       document.getElementById("status").innerText = "Signing in…";
@@ -62,11 +62,11 @@
       tokenClient.requestAccessToken();
     };
 
+    // OAuth 2.0 token client (no ux_mode here)
     function initTokenClient() {
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
-        ux_mode: "popup",
         callback: async (tokenResponse) => {
           accessToken = tokenResponse.access_token;
           console.log("Got access token:", accessToken);
@@ -96,10 +96,7 @@
 
     // ======= Execution API helper =======
     async function callScript(functionName, params) {
-      if (!accessToken) {
-        alert("⚠️ Please sign in first.");
-        return null;
-      }
+      if (!accessToken) { alert("⚠️ Please sign in first."); return null; }
       const url = `https://script.googleapis.com/v1/scripts/${SCRIPT_ID}:run`;
       const res = await fetch(url, {
         method: "POST",
@@ -110,7 +107,7 @@
         body: JSON.stringify({
           function: functionName,
           parameters: params,
-          devMode: true // run latest code without redeploying
+          devMode: true
         })
       });
 
@@ -175,8 +172,8 @@
     // ======= Load / Save =======
     async function loadStudentData() {
       if (!currentEmail) return;
-
       const resp = await callScript("getStudentData", [currentEmail]);
+
       if (resp?.error) { logScriptErrorPayload(resp); console.warn("Load failed: ScriptError"); return; }
       if (resp?.response?.result?.error) { console.warn("No existing data:", resp.response.result.error); return; }
 
@@ -197,10 +194,12 @@
 
     async function saveToGoogleSheets() {
       if (!currentEmail) { alert("⚠️ Not signed in."); return; }
-      if (isSaving) return; // guard
+      if (isSaving) return;
 
       isSaving = true;
       showBusy("Saving in progress…");
+      const saveBtn = document.getElementById("saveBtn");
+      if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = "Saving…"; }
 
       const payload = {
         studentClass:  document.getElementById("studentClass").value,
@@ -236,11 +235,6 @@
 
     // ======= Unsaved-change prompt & input listeners =======
     document.addEventListener("DOMContentLoaded", () => {
-      // Show a “loading” modal as soon as they click the Google button
-      const gbtn = document.querySelector(".g_id_signin");
-      if (gbtn) gbtn.addEventListener("click", () => showBusy("Loading your data…"));
-
-      // Any input change marks the form as dirty
       document.querySelectorAll("#trackerSection input, #trackerSection textarea").forEach(el => {
         el.addEventListener("input", () => { isDirty = true; });
       });
@@ -249,21 +243,21 @@
     window.addEventListener("beforeunload", (e) => {
       if (isDirty && !isSaving) {
         e.preventDefault();
-        e.returnValue = ""; // required for Chrome to show prompt
+        e.returnValue = ""; // required for Chrome
       }
     });
   </script>
 
-  <!-- Load the Google Identity Services library AFTER defining window.onSignIn -->
+  <!-- Load Google Identity Services AFTER defining window.onSignIn -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div class="content">
     <h1>📊 Student Data Tracker</h1>
 
-    <!-- Google Sign-in (CLIENT_ID here must match the constant above) -->
+    <!-- Google Sign-in (CLIENT_ID must match the constant above) -->
     <div id="g_id_onload"
-         data-client_id=46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"  
+         data-client_id="46574731783-ubpvvqhsrnftv70ht57ecf2vcj9l0kjc.apps.googleusercontent.com"  
          data-context="signin"
          data-ux_mode="popup"
          data-callback="onSignIn"
@@ -315,7 +309,7 @@
     </div>
   </div>
 
-  <!-- Busy modal -->
+  <!-- Busy modal (used for saving only) -->
   <div id="busyModal" class="modal">
     <div class="modal-box"><span id="busyText">Working…</span></div>
   </div>
